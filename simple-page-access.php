@@ -33,6 +33,13 @@ class Simple_Page_Access {
 
         // Check access on page load
         add_action('template_redirect', array($this, 'check_page_access'));
+
+        // Remove inaccessible posts/pages from query results (archives, search, feeds, embeds).
+        add_filter('the_posts', array($this, 'filter_inaccessible_posts'), 10, 2);
+
+        // Block restricted content in REST API responses.
+        add_filter('rest_prepare_post', array($this, 'filter_rest_response'), 10, 3);
+        add_filter('rest_prepare_page', array($this, 'filter_rest_response'), 10, 3);
     }
 
     /**
@@ -156,56 +163,118 @@ class Simple_Page_Access {
 
         $post_id = get_the_ID();
 
-        // Check if restriction is enabled
-        $restrict_access = get_post_meta($post_id, 'spa_restrict_access', true);
-
-        if (!$restrict_access) {
-            return;
-        }
-
-        // Admins always have access
-        if (current_user_can('administrator')) {
-            return;
-        }
-
-        // Check if user is logged in
-        if (!is_user_logged_in()) {
+        if ($post_id && !$this->user_can_access_post($post_id)) {
             $this->trigger_404();
-            return;
+        }
+    }
+
+    /**
+     * Remove inaccessible posts/pages from query results.
+     *
+     * @param array    $posts Queried posts.
+     * @param WP_Query $query WP Query object.
+     * @return array
+     */
+    public function filter_inaccessible_posts($posts, $query) {
+        if (empty($posts) || !is_array($posts)) {
+            return $posts;
         }
 
-        // Get allowed roles and validate them
-        $allowed_roles = get_post_meta($post_id, 'spa_allowed_roles', true);
+        $filtered = array();
+        foreach ($posts as $post) {
+            if (!isset($post->ID, $post->post_type)) {
+                $filtered[] = $post;
+                continue;
+            }
 
-        // If no roles are selected, any logged-in user can access
-        if (empty($allowed_roles) || !is_array($allowed_roles)) {
-            return;
-        }
+            if (!in_array($post->post_type, array('post', 'page'), true)) {
+                $filtered[] = $post;
+                continue;
+            }
 
-        // Validate that the stored roles actually exist in WordPress
-        $allowed_roles = $this->validate_roles($allowed_roles);
-
-        // If no valid roles remain after validation, allow any logged-in user
-        if (empty($allowed_roles)) {
-            return;
-        }
-
-        // Check if current user has any of the allowed roles
-        $current_user = wp_get_current_user();
-        $user_roles = $current_user->roles;
-
-        $has_access = false;
-        foreach ($user_roles as $user_role) {
-            if (in_array($user_role, $allowed_roles)) {
-                $has_access = true;
-                break;
+            if ($this->user_can_access_post((int) $post->ID)) {
+                $filtered[] = $post;
             }
         }
 
-        // Show 404 if user doesn't have access
-        if (!$has_access) {
-            $this->trigger_404();
+        return $filtered;
+    }
+
+    /**
+     * Restrict post/page REST API responses.
+     *
+     * @param WP_REST_Response $response Response object.
+     * @param WP_Post          $post     Post object.
+     * @param WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function filter_rest_response($response, $post, $request) {
+        if (!isset($post->ID)) {
+            return $response;
         }
+
+        if (!$this->user_can_access_post((int) $post->ID)) {
+            return new WP_Error(
+                'spa_rest_forbidden',
+                __('Sorry, you are not allowed to access this content.', 'simple-page-access'),
+                array('status' => 404)
+            );
+        }
+
+        return $response;
+    }
+
+    /**
+     * Determine whether the current user can access a post/page.
+     *
+     * @param int $post_id Post ID.
+     * @return bool
+     */
+    private function user_can_access_post($post_id) {
+        // Check if restriction is enabled.
+        $restrict_access = get_post_meta($post_id, 'spa_restrict_access', true);
+        if (!$restrict_access) {
+            return true;
+        }
+
+        // Capability-based admin bypass.
+        if (current_user_can('manage_options')) {
+            return true;
+        }
+
+        if (!is_user_logged_in()) {
+            return false;
+        }
+
+        $allowed_roles = get_post_meta($post_id, 'spa_allowed_roles', true);
+
+        // Explicitly allow any logged-in user when no roles are configured.
+        if (empty($allowed_roles)) {
+            return true;
+        }
+
+        // Malformed role data should fail closed.
+        if (!is_array($allowed_roles)) {
+            return false;
+        }
+
+        $allowed_roles = $this->validate_roles($allowed_roles);
+
+        // Invalid role configuration should fail closed.
+        if (empty($allowed_roles)) {
+            return false;
+        }
+
+        $current_user = wp_get_current_user();
+        $user_roles = is_array($current_user->roles) ? $current_user->roles : array();
+
+        foreach ($user_roles as $user_role) {
+            if (in_array($user_role, $allowed_roles, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -219,10 +288,11 @@ class Simple_Page_Access {
             return array();
         }
 
+        $roles = array_map('sanitize_key', $roles);
         $valid_roles = array_keys(wp_roles()->roles);
 
         // Filter out any roles that don't exist in WordPress
-        return array_intersect($roles, $valid_roles);
+        return array_values(array_intersect($roles, $valid_roles));
     }
 
     /**
