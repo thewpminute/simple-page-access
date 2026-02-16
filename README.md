@@ -1,59 +1,59 @@
 # Simple Page Access
 
-A WordPress plugin that allows you to control access to pages and posts for logged-in users with specific roles.
+Simple Page Access lets you lock individual posts and pages so only logged-in users, or logged-in users with selected roles, can view them.
 
-## Features
+## What it does
 
-- Restrict access to individual posts and pages to logged-in users only
-- Granular control: Select specific user roles that can access content
-- Seamless integration with WordPress Block Editor (Gutenberg)
-- Shows standard WordPress 404 page for unauthorized access
-- Administrators always have access to all content
+- Adds a **Simple Page Access** panel in the Block Editor sidebar
+- Lets you require login for a single post or page
+- Lets you optionally allow only selected roles
+- Returns a standard WordPress `404` for unauthorized visitors
+- Keeps administrators/ site managers able to access restricted content
 
-## Installation
+## Quick start
 
-1. Upload the `simple-page-access` folder to the `/wp-content/plugins/` directory
-2. Activate the plugin through the 'Plugins' menu in WordPress
-3. Navigate to any post or page in the Block Editor to configure access settings
+1. Upload the `simple-page-access` folder to `/wp-content/plugins/`.
+2. Activate **Simple Page Access** in **Plugins**.
+3. Edit a post or page in the Block Editor.
+4. Open the right sidebar and find **Simple Page Access**.
+5. Enable **Restrict to logged in users only**.
+6. Optional: check one or more roles in **Allowed User Roles**.
+7. Update or publish the post/page.
 
-## Usage
+## How access rules work
 
-### Restricting a Page or Post
+| Setting | Who can access |
+|---|---|
+| Restriction **OFF** | Everyone (public) |
+| Restriction **ON**, no roles selected | Any logged-in user |
+| Restriction **ON**, roles selected | Logged-in users with at least one selected role |
+| Restriction **ON** | Administrators/site managers still have access |
 
-1. Edit a post or page in the WordPress Block Editor
-2. In the right sidebar, scroll down to find the **"Simple Page Access"** panel
-3. Check the box **"Restrict to logged in users only"** to enable access control
-4. Optionally, select specific user roles that should have access:
-   - Check one or more user roles (Subscriber, Contributor, Author, Editor, etc.)
-   - If no roles are selected, any logged-in user can access the content
-   - If specific roles are selected, only users with those roles can access the content
+Unauthorized users receive a `404` response instead of the content.
 
-### Access Behavior
+## Where protection applies
 
-- **Non-logged-in users**: Will see a 404 page
-- **Logged-in users without required role**: Will see a 404 page
-- **Logged-in users with required role**: Can view the content normally
-- **Administrators**: Always have full access regardless of settings
+Protection is enforced for restricted posts/pages on:
 
-## Technical Details
-
-- Compatible with WordPress Block Editor (Gutenberg)
-- Uses WordPress post meta to store access settings
-- Works with standard posts and pages
-- Lightweight with no database tables required
+- Direct post/page views
+- WordPress REST API responses for posts/pages
+- Post/page listings that use normal WordPress queries (for example archives, search, and feeds)
 
 ## Requirements
 
-- WordPress 5.0 or higher (Block Editor support)
+- WordPress 5.0 or higher (Block Editor / Gutenberg)
 - PHP 7.0 or higher
 
-## Author
+## Troubleshooting
 
-Created by [WP Minute](https://thewpminute.com/)
+- **You cannot see the settings panel**: Confirm you are editing a post or page in the Block Editor (not Classic Editor).
+- **Restriction seems inactive**: Make sure the post/page is updated after toggling settings.
+- **A role cannot access content**: Verify the user account actually has that role on this site.
+- **You are testing while logged in as admin**: Admin/site manager accounts bypass restrictions by design.
 
 ## Support
 
-For issues or feature requests, please visit [thewpminute.com](https://thewpminute.com/)
+For issues or feature requests, visit [thewpminute.com](https://thewpminute.com/).
 
 ## License
 
